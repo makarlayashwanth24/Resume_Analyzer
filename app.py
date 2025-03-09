@@ -1,6 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, Body
 import os
-import fitz
 from dotenv import load_dotenv
 import google.generativeai as genai
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,28 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def extract_text_from_pdf(uploaded_file):
-    document = fitz.open(stream=uploaded_file.file.read(), filetype="pdf")
-    text_parts = [page.get_text() for page in document]
-    return " ".join(text_parts)
-
-def get_gemini_response(input_text, pdf_content, prompt):
+def get_gemini_response(input_text, prompt):
     model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content([input_text, pdf_content, prompt])
+    response = model.generate_content([input_text, prompt])
     return response.text
 
-# API Endpoints
+# API Endpoint
 @app.post("/analyze-resume/")
 async def analyze_resume(
-    input_text: str = Form(...),
-    uploaded_file: UploadFile = File(...),
-    prompt_type: str = Form(...)
+    input_text: str = Body(..., embed=True),
+    prompt_type: str = Body(..., embed=True)
 ):
-    pdf_content = extract_text_from_pdf(uploaded_file)
-    
     prompts = {
         "review": """
-        You are an experienced Technical Human Resource Manager. Your task is to review the provided resume against the job description. 
+        You are an experienced Technical Human Resource Manager. Your task is to review the provided resume text against the job description. 
         Please share your professional evaluation on whether the candidate's profile aligns with the role. 
         Highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
         """,
@@ -67,5 +58,5 @@ async def analyze_resume(
     if selected_prompt == "Invalid prompt type":
         return {"error": "Invalid prompt type selected"}
 
-    response = get_gemini_response(input_text, pdf_content, selected_prompt)
+    response = get_gemini_response(input_text, selected_prompt)
     return {"response": response}
