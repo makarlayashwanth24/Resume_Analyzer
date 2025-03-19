@@ -15,23 +15,35 @@ app = FastAPI()
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # You can restrict this to your frontend domain for better security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-def get_gemini_response(input_text, prompt):
+def get_gemini_response(job_description, resume_content, prompt):
     model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content([input_text, prompt])
+    
+    # Combine the job description and resume content for the model input
+    combined_input = f"""
+    Job Description:
+    {job_description}
+
+    Resume Content:
+    {resume_content}
+    """
+    
+    response = model.generate_content([combined_input, prompt])
     return response.text
 
 # API Endpoint
 @app.post("/analyze-resume/")
 async def analyze_resume(
-    input_text: str = Body(..., embed=True),
-    prompt_type: str = Body(..., embed=True)
+    jobDescription: str = Body(..., embed=True),
+    promptType: str = Body(..., embed=True),
+    resumeContent: str = Body(..., embed=True)
 ):
+    # Define your prompt templates
     prompts = {
         "review": """
         You are an experienced Technical Human Resource Manager. Your task is to review the provided resume text against the job description. 
@@ -52,11 +64,16 @@ async def analyze_resume(
         Evaluate the resume and provide a match percentage, missing keywords, and final thoughts.
         """
     }
-    
-    selected_prompt = prompts.get(prompt_type, "Invalid prompt type")
-    
-    if selected_prompt == "Invalid prompt type":
+
+    # Get the selected prompt based on promptType
+    selected_prompt = prompts.get(promptType)
+
+    if not selected_prompt:
         return {"error": "Invalid prompt type selected"}
 
-    response = get_gemini_response(input_text, selected_prompt)
-    return {"response": response}
+    # Get the response from Gemini
+    try:
+        response_text = get_gemini_response(jobDescription, resumeContent, selected_prompt)
+        return {"response": response_text}
+    except Exception as e:
+        return {"error": f"Resume analysis failed: {str(e)}"}
